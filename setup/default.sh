@@ -39,9 +39,15 @@ fi
 # install requirements
 if true; then
     pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
+    pip install --upgrade google-cloud-storage
 fi
 
 # write custom bashrc to main bashrc
 if true; then
     echo "source ~/bovo/setup/bashrc.sh" >> ~/.bashrc
+fi
+
+# local install of bovo lib
+if true; then
+    pip install -e src
 fi

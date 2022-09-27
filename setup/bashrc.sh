@@ -10,3 +10,4 @@ cd() {
 	act
 }
 
+export GOOGLE_APPLICATION_CREDENTIALS="credentials/bovo-predict-gcs.json"
