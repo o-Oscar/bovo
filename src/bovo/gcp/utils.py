@@ -1,3 +1,5 @@
+# more infos at whttps://console.cloud.google.com/storage/browser?project=bovo-predict&prefix=
+
 from pathlib import Path
 
 from google.cloud import storage
@@ -8,8 +10,28 @@ _client = storage.Client()
 
 
 def upload(path: Path | str):
-    save_path = Path(path)
-    print(check_path(save_path))
+    path = Path(path)
+    check_path(path)
+
+    in_data_path = path.relative_to(DATA_PATH)
+    bucket_name = in_data_path.parts[0]
+    bucket = _client.bucket(bucket_name)
+
+    if path.is_file():
+        in_bucket_path = path.relative_to(DATA_PATH / bucket_name)
+        blob = bucket.blob(str(in_bucket_path))
+        upload_blob(blob, path)
+    else:
+        for file_path in path.glob("*"):
+            if file_path.is_file():
+                in_bucket_path = file_path.relative_to(DATA_PATH / bucket_name)
+                blob = bucket.blob(str(in_bucket_path))
+                upload_blob(blob, file_path)
+
+
+def upload_blob(blob: storage.Blob, save_path: Path):
+    with open(save_path, "rb") as f:
+        blob.upload_from_file(f)
 
 
 def download(path: Path | str):
