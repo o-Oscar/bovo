@@ -40,6 +40,9 @@ fi
 if true; then
     pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
     pip install --upgrade google-cloud-storage
+    pip install matplotlib
+    pip install pandas
+    pip install seaborn
 fi
 
 # write custom bashrc to main bashrc
