@@ -4,9 +4,9 @@ import torchvision.transforms as transforms
 
 import bovo
 
-transform = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-)
+# transform = transforms.Compose(
+#     [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+# )
 
 batch_size = 4
 

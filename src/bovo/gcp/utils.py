@@ -34,7 +34,7 @@ def upload_blob(blob: storage.Blob, save_path: Path):
         blob.upload_from_file(f)
 
 
-def download(path: Path | str):
+def download(path: Path | str, force_download=False):
     path = Path(path)
     check_path(path)
 
@@ -43,8 +43,12 @@ def download(path: Path | str):
     in_bucket_path = path.relative_to(DATA_PATH / bucket_name)
 
     for blob in _client.list_blobs(bucket_name, prefix=str(in_bucket_path)):
-        file_save_path = DATA_PATH / bucket_name / blob.name
-        download_blob(blob, file_save_path)
+        file_save_path: Path = DATA_PATH / bucket_name / blob.name
+        if force_download or not file_save_path.exists():
+            print("Downloading", file_save_path)
+            download_blob(blob, file_save_path)
+        else:
+            print("Skipping", file_save_path)
 
 
 def download_blob(blob_or_uri, save_path: Path):
