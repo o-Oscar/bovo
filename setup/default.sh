@@ -43,6 +43,14 @@ if true; then
     pip install matplotlib
     pip install pandas
     pip install seaborn
+
+    # glu-net
+    pip install opencv-python
+    pip install scipy
+    pip install termcolor
+    pip install tqdm
+    pip install cupy-cuda117
+    pip install imageio
 fi
 
 # write custom bashrc to main bashrc
