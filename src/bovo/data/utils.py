@@ -74,6 +74,8 @@ class ToothDataset(Dataset):
         img_path = BASE_PATH / self.query_list[idx].chemin_cs
         with Image.open(img_path) as image:
             # TODO : add random rotation to image
+            image.resize((basewidth, hsize), Image.ANTIALIAS)
+
             raw = np.asarray(image)
 
         # TODO : add random color change

@@ -1,5 +1,6 @@
 import torch as th
 import torch.nn as nn
+from bovo.data.warp import get_identity_wrap
 
 """
 Module that takes two black and white images I and J as input and predicts the deformation in the that alignes I to J
@@ -8,18 +9,21 @@ Simple convolution layers to a defined coarse resolution where the flow is predi
 
 
 class FlowPredictionModule(nn.Module):
-    def __init__(self, img_height, img_width, img_depth):
+    def __init__(self, img_height, img_width, img_depth, n_layers=3, first_depth=8):
         super().__init__()
         self.img_height = img_height
         self.img_width = img_width
         self.img_depth = img_depth
+        self.identity_wrap = nn.Parameter(
+            get_identity_wrap(self.img_height, self.img_width), requires_grad=False
+        )
 
-        n_channels = 8
+        n_channels = first_depth
         self.encoding_layer = nn.Conv2d(
             self.img_depth * 2, n_channels, kernel_size=3, padding="same"
         )
 
-        n_modules = 4
+        n_modules = 4  # TODO : add layers that do not downsample
         assert self.img_height % (2**n_modules) == 0
         assert self.img_width % (2**n_modules) == 0
         self.coarse_img_height = self.img_height // (2**n_modules)
@@ -27,6 +31,8 @@ class FlowPredictionModule(nn.Module):
 
         self.layers = []
         for i in range(n_modules):
+            for _ in range(n_layers - 1):
+                self.layers.append(ResNetBlock(n_channels, n_channels, False))
             self.layers.append(ResNetBlock(n_channels, n_channels * 2, True))
             n_channels *= 2
         self.layers = th.nn.ModuleList(self.layers)
@@ -59,6 +65,26 @@ class FlowPredictionModule(nn.Module):
         W_pred = self(I, J)
         loss = th.mean(th.square((W - W_pred)))
         return loss
+
+    def warp_losses(self, I, Ip, J, W):
+        FIJ = self(I, J)
+        FJIp = self(J, Ip)
+        FIIp = self(I, Ip)
+
+        phi = th.permute(
+            nn.functional.grid_sample(
+                th.permute(FJIp, (0, 3, 1, 2)),
+                FIJ + self.identity_wrap,
+                align_corners=True,
+                padding_mode="border",
+            ),
+            (0, 2, 3, 1),
+        )
+        Lwvis = th.mean(th.square((FIJ + phi - W)))
+
+        Lwarp = th.mean(th.square((FIIp - W)))
+
+        return Lwvis, Lwarp
 
 
 class ResNetBlock(nn.Module):

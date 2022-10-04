@@ -43,14 +43,21 @@ if true; then
     pip install matplotlib
     pip install pandas
     pip install seaborn
+    pip install wandb
+    pip install tqdm
+    pip install scipy
 
     # glu-net
-    pip install opencv-python
-    pip install scipy
-    pip install termcolor
-    pip install tqdm
-    pip install cupy-cuda117
-    pip install imageio
+    # pip install opencv-python
+    # pip install termcolor
+    # pip install cupy-cuda117
+    # pip install imageio
+
+fi
+
+# wandb login
+if true; then
+    wandb login
 fi
 
 # write custom bashrc to main bashrc

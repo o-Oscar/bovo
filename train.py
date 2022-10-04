@@ -1,35 +1,42 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
-import torch.nn as nn
-import torchvision
-import torchvision.transforms as transforms
 
 import bovo.data.warp
 import bovo.wrap.network
+import wandb
+
+USE_WANDB = True
+
+# wandb.config = {
+#     "layers": 1,
+#     "first_depth": 4,
+# }  # {"learning_rate": 0.001, "epochs": 100, "batch_size": 128}
 
 device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+print(device)
 
 batch_size = 4
 
-trainset = bovo.data.warp.WarpDataset()
-
-net = bovo.wrap.network.FlowPredictionModule(64, 32, 1).to(device)
-
-optimizer = th.optim.Adam(net.parameters(), lr=0.0001)
+train_set = bovo.data.warp.WarpDataset(True, 0.9)
+# train_loader = DataLoader(train_set, batch_size=10, shuffle=True)
+test_set = bovo.data.warp.WarpDataset(False, 0.9)
+# test_loader = DataLoader(test_set, batch_size=10, shuffle=False)
 
 
 def plot_network(save_id):
-    batch = [trainset[100] for i in range(10)]
+    batch = [train_set[100] for i in range(10)]
 
     I = th.concat([b["source"] for b in batch], dim=0).to(device)
-    J = th.concat([b["warped"] for b in batch], dim=0).to(device)
+    Ip = th.concat([b["warped"] for b in batch], dim=0).to(device)
     W = th.concat([b["warp"] for b in batch], dim=0).to(device)
-    W_pred = net(I, J)
+    # J = th.concat([b["random"] for b in batch], dim=0).to(device)
+
+    W_pred = net(I, Ip)
 
     I_np = np.concatenate(I.detach().cpu().numpy(), axis=2)[0]
-    J_np = np.concatenate(J.detach().cpu().numpy(), axis=2)[0]
-    to_plot = np.concatenate((I_np, J_np), axis=0)
+    Ip_np = np.concatenate(Ip.detach().cpu().numpy(), axis=2)[0]
+    to_plot = np.concatenate((I_np, Ip_np), axis=0)
     plt.imshow(to_plot, cmap="Greys_r")
     plt.savefig(f"results/imgs/tooth_{save_id}_img.png")
 
@@ -42,30 +49,108 @@ def plot_network(save_id):
     plt.savefig(f"results/imgs/tooth_{save_id}_disp.png")
 
 
-plot_network(0)
+# net = bovo.wrap.network.FlowPredictionModule(64, 32, 1, n_layers=2, first_depth=32).to(
+#     device
+# )
+# plot_network(0)
 # exit()
 
-for epoch in range(100):
+configs = []
+for n_layers in range(2, 4):
+    for first_depth in [32, 64]:
+        configs.append(
+            {
+                "n_layers": n_layers,
+                "first_depth": first_depth,
+            }
+        )
 
-    total_loss = 0
-    batch_nb = 10
-    for batch_b in range(batch_nb):
-        optimizer.zero_grad()
 
-        batch = [trainset[i + 10 * batch_nb] for i in range(10)]
+for config in configs:
 
-        I = th.concat([b["source"] for b in batch], dim=0).to(device)
-        J = th.concat([b["warped"] for b in batch], dim=0).to(device)
-        W = th.concat([b["warp"] for b in batch], dim=0).to(device)
+    model_name = "l{}_d{}".format(config["n_layers"], config["first_depth"])
 
-        loss = net.loss(I, J, W)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
+    print("running new config :")
+    print(config)
 
-        print(loss.item())
+    net = bovo.wrap.network.FlowPredictionModule(64, 32, 1, **config).to(device)
+    net.identity_wrap = net.identity_wrap.to(device)
 
-plot_network(100)
+    optimizer = th.optim.Adam(net.parameters(), lr=1e-4)
+
+    plot_network(0)
+    # exit()
+
+    if USE_WANDB:
+        wandb.init(
+            project="bovo_warp",
+            config=config,
+        )
+
+    lamb = 1
+
+    for epoch in range(300):
+
+        train_warp_loss = 0
+        train_consistency_loss = 0
+        batch_size = 10
+        batch_nb = len(train_set) // batch_size
+        all_idx = np.random.permutation(len(train_set))
+
+        net.train()
+        for batch_id in range(batch_nb):
+            optimizer.zero_grad()
+
+            batch = [
+                train_set[all_idx[batch_id * batch_size + i]] for i in range(batch_size)
+            ]
+
+            I = th.concat([b["source"] for b in batch], dim=0).to(device)
+            Ip = th.concat([b["warped"] for b in batch], dim=0).to(device)
+            J = th.concat([b["random"] for b in batch], dim=0).to(device)
+            W = th.concat([b["warp"] for b in batch], dim=0).to(device)
+
+            warp_loss, consistency_loss = net.warp_losses(I, Ip, J, W)
+            loss = warp_loss + consistency_loss * lamb
+            loss.backward()
+            optimizer.step()
+            train_warp_loss += warp_loss.item() / batch_nb
+            train_consistency_loss += consistency_loss.item() / batch_nb
+
+        lamb = train_warp_loss / train_consistency_loss
+
+        test_warp_loss = 0
+        test_consistency_loss = 0
+        net.eval()
+        for batch_id in range(1):
+
+            batch = [test_set[i] for i in range(batch_size)]
+
+            I = th.concat([b["source"] for b in batch], dim=0).to(device)
+            Ip = th.concat([b["warped"] for b in batch], dim=0).to(device)
+            J = th.concat([b["random"] for b in batch], dim=0).to(device)
+            W = th.concat([b["warp"] for b in batch], dim=0).to(device)
+
+            warp_loss, consistency_loss = net.warp_losses(I, Ip, J, W)
+            test_loss = 0
+            test_warp_loss += warp_loss.item()
+            test_consistency_loss += consistency_loss.item()
+
+        to_save = {
+            "train_warp_loss": train_warp_loss,
+            "train_consistency_loss": train_consistency_loss,
+            "test_warp_loss": test_warp_loss,
+            "test_consistency_loss": test_consistency_loss,
+        }
+        if USE_WANDB:
+            wandb.log(to_save)
+        print(to_save)
+
+        th.save(net.state_dict(), "results/models/" + model_name)
+
+    plot_network(100)
+    if USE_WANDB:
+        wandb.finish()
 
 # W_pred = net(I, J)
 # print(W_pred.shape)
