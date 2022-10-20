@@ -26,10 +26,25 @@ class QueryResult:
     po_bc: float = 0
 
 
-def read_db():
+def read_db(split_frac=0.9):
     query = f""" select * from (select id_examen, id_cs, chemin_cs, po_bc from coupes_sagittales_classification where creux = 1 and dente = 1)"""
     _cursor.execute(query)
-    return [QueryResult(*x) for x in _cursor.fetchall()]
+    raw_return = [QueryResult(*x) for x in _cursor.fetchall()]
+    examens = list(set([(x.id_exam, x.po_bc) for x in raw_return]))
+    examens = sorted(examens, key=lambda x: x[1])
+
+    test_exams_id = set([x[0] for x in examens[:: int(1 / (1 - split_frac))]])
+
+    test_return = [x for x in raw_return if x.id_exam in test_exams_id]
+    train_return = [x for x in raw_return if x.id_exam not in test_exams_id]
+
+    return train_return, test_return
+
+
+if __name__ == "__main__":
+    train_return, test_return = read_db()
+    print("train basal : ", np.mean([x.po_bc <= 17 for x in train_return]))
+    print("test basal : ", np.mean([x.po_bc <= 17 for x in test_return]))
 
 
 def get_filtered_results():
