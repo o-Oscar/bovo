@@ -19,3 +19,6 @@ import bovo
 
 # path = "data/base_de_donnees_juin_2021/Coupes_sagittales_classification/database_CS_classif.db"
 # bovo.gcp.upload(path)
+
+path = "data/svm"
+bovo.gcp.upload(path)
