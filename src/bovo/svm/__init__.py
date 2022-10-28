@@ -58,7 +58,7 @@ x_columns = [
 
 def load_data(y_col):
     df = pd.read_csv("/home/oscar/bovo/data/svm/196_exams.csv", sep=";")
-    df = df[df["Cote"] == "edente"]
+    df = df[df["Cote"] == "dente"]
 
     x_df = df[df.columns.intersection(x_columns)]
 
