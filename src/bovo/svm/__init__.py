@@ -6,6 +6,7 @@ import pandas as pd
 import seaborn as sns
 from sklearn import svm
 from sklearn.feature_selection import RFECV
+from sklearn.linear_model import LassoCV, LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import GridSearchCV, StratifiedShuffleSplit
 from sklearn.svm import SVC
@@ -102,6 +103,18 @@ def select_features(svc, cv, X, y):
         scores.append(calc_score(svc, cv, X.T[rfecv.support_.ravel()].T, y))
 
     return scores, columns_selectors
+
+
+def select_lasso_features(cv, X, y):
+    lasso = LassoCV(cv=cv)
+    lasso.fit(X, y)
+    return np.abs(lasso.coef_) > 1e-5
+
+
+def select_lasso2_features(cv, X, y):
+    lasso = LogisticRegression(penalty="l1", solver="liblinear")
+    lasso.fit(X, y)
+    return np.abs(lasso.coef_[0]) > 1e-5
 
 
 def calc_confusion_matrix(svc, cv, loss_threshold, x, y):
