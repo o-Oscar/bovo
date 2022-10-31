@@ -76,6 +76,40 @@ def load_with_threshold(y_col, loss_threshold):
     return X, y, x_df.columns
 
 
+def threshold_id(thresholds, v):
+    for i, t in enumerate(thresholds):
+        if v < t:
+            return i
+    return len(thresholds)
+
+
+def load_with_thresholds(y_col, thresholds):
+    x_df, target_values = load_data(y_col)
+    X = x_df.to_numpy()
+    X = (X - np.mean(X, axis=0, keepdims=True)) / (
+        np.var(X, axis=0, keepdims=True) + 1e-3
+    )
+
+    thresholds = sorted(thresholds)
+    y = np.array([threshold_id(thresholds, v) for v in target_values])
+    return X, y, x_df.columns
+
+
+# def load_with_two_hreshold(y_col, th_min, th_max):
+#     x_df, target_values = load_data(y_col)
+#     selector = np.array([x < th_min or  th_max < x for x in y_col])
+
+#     X_df = X_df[selector]
+#     target_values = target_values[selector]
+
+#     X = x_df.to_numpy()
+#     X = (X - np.mean(X, axis=0, keepdims=True)) / (
+#         np.var(X, axis=0, keepdims=True) + 1e-3
+#     )
+#     y = np.array([0 if v < loss_threshold else 1 for v in target_values])
+#     return X, y, x_df.columns
+
+
 def calc_score(svc, cv, X, y):
     to_return = []
     for train_index, test_index in cv.split(X, y):
@@ -159,6 +193,56 @@ def calc_confusion_matrix(svc, cv, loss_threshold, x, y):
         annot=True,
         xticklabels=sorted_labels,
         yticklabels=sorted_labels,
+        cmap="Blues",
+        fmt="g",
+    )
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.title("Confusion Matrix")
+    return np.mean(all_acc), np.std(all_acc)
+
+
+def calc_multi_confusion_matrix(svc, cv, texts, x, y):
+    actual_classes = []
+    predicted_classes = []
+
+    all_matrixes = []
+    all_acc = []
+
+    for train_index, test_index in cv.split(x, y):
+        X_train, X_test = x[train_index], x[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        _ = svc.fit(X_train, y_train)
+        y_pred = svc.predict(X_test)
+
+        all_matrixes.append(confusion_matrix(y_test, y_pred))
+        all_acc.append(np.mean([x == y for x, y in zip(y_test, y_pred)]))
+
+        actual_classes = actual_classes + list(y_test)
+        predicted_classes = predicted_classes + list(y_pred)
+
+    matrix = confusion_matrix(actual_classes, predicted_classes)
+    std = np.std(all_matrixes, axis=0) * len(all_matrixes)
+
+    # texts = np.array(
+    #     ["{} (±{:.2f})".format(m, s) for m, s in zip(matrix.flatten(), std.flatten())]
+    # ).reshape(matrix.shape)
+
+    plt.figure(figsize=(12.8, 6))
+    # sns.heatmap(
+    #     matrix,
+    #     annot=texts,
+    #     xticklabels=sorted_labels,
+    #     yticklabels=sorted_labels,
+    #     cmap="Blues",
+    #     fmt="",
+    # )
+    sns.heatmap(
+        matrix,
+        annot=True,
+        xticklabels=texts,
+        yticklabels=texts,
         cmap="Blues",
         fmt="g",
     )
